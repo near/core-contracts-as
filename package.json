@@ -1,0 +1,12 @@
+{
+  "version": "0.0.0",
+  "name": "core-contracts",
+  "license": "MIT",
+  "scripts": {
+    "build": "asb",
+    "test": "asp"
+  },
+  "devDependencies": {
+    "near-sdk-as": "^1.2.0"
+  }
+}

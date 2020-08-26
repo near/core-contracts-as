@@ -1,0 +1,8 @@
+{
+  "version": "0.0.0",
+  "name": "staking-pool-factory",
+  "license": "MIT",
+  "scripts": {
+    "test": "ts-node .. -- --showConfig"
+  }
+}

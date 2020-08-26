@@ -1,0 +1,11 @@
+{
+  "workspaces": [
+    "./exchange-deposit-receiver",
+    "./lockup",
+    "./multisig",
+    "./staking-pool",
+    "./staking-pool-factory",
+    "./voting",
+    "./whitelist"
+  ]
+}
