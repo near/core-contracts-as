@@ -1,0 +1,27 @@
+name: Test
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+jobs:
+  test:
+    runs-on: ${{ matrix.platform }}
+    name: "${{ matrix.platform }}"
+    strategy:
+      matrix:
+        platform: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
+      - name: Install dependencies
+        env:
+          YARN_GPG: no 
+        run: yarn --frozen-lockfile
+      - name: build
+        run: yarn build
+      - name: test
+        run: yarn test
