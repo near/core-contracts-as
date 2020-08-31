@@ -4,9 +4,17 @@
   "license": "MIT",
   "scripts": {
     "build": "asb",
-    "test": "asp"
+    "build:test": "asb --target debug",
+    "asp": "asp",
+    "jest": "jest",
+    "test": "yarn build:test && yarn asp && yarn jest"
   },
   "devDependencies": {
-    "near-sdk-as": "^1.2.0"
+    "@types/jest": "^26.0.10",
+    "@types/node": "^14.6.2",
+    "jest": "^26.4.2",
+    "near-sdk-as": "^1.2.0",
+    "ts-jest": "^26.3.0",
+    "typescript": "^4.0.2"
   }
 }
