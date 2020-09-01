@@ -105,3 +105,4 @@ dist
 
 build/
 **/*/build/
+core-contracts/
