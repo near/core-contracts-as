@@ -7,37 +7,28 @@ describe("contract unit tests", () => {
 
     it("should deposit", () => {
 
-    let data = Context.accountBalance
+    let data = Context.accountLockedBalance
     expect(data).toBe(u128.from(100))
 
     let rff=new RewardFeeFraction(10,100)
 
-    //initializeState("alice", "KuTCtARNzxZQ3YvXDeLjx83FDqxv2SdQTSbiq876zR7", rff)
+    initializeState("alice", "KuTCtARNzxZQ3YvXDeLjx83FDqxv2SdQTSbiq876zR7", rff)
 
-    //let contract = internalCreatedStatePtr()
+    let contract = internalCreatedStatePtr()
 
     VMContext.setAttached_deposit(u128.from(10));
     VMContext.setInput("");
 
-    //let result = contract.clientDeposit()
+    let result = contract.clientDeposit()
 
-    //expect(result).toBe(u128.from(100))
+    expect(result).toBe(u128.from(100))
 
-      //reverseWordOne();
-      // log(VM.outcome());
-      // log(VM.logs());
     });
   
     it("should stake", () => {
-      //reverseWordTwo();
-      // log(VM.outcome());
-      // log(VM.logs());
     });
   
     it("should deposit-and-stake", () => {
-      //reverseWordThree();
-      // log(VM.outcome());
-      // log(VM.logs());
     });
   });
   

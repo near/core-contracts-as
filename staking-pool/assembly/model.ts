@@ -7,9 +7,9 @@ type EpochHeight = u64;
 /// A type to distinguish between a balance and "stake" shares for better readability.
 export type NumStakeShares = u128;
 
-/**
- * client account state persisted into a map
- */
+//
+// client account state persisted into a map
+//
 export class ClientAccountState {
 
   /// The unstaked balance. It represents the amount the account has on this contract that

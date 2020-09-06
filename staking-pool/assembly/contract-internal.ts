@@ -6,7 +6,6 @@ type AccountId = string;
 type Balance = u128;
 type EpochHeight = u64;
 class EmptyArgs { }
-//export declare function assert(cond: boolean, msg: string): void
 
 /// The amount of yocto NEAR the contract dedicates to guarantee that the "share" price never
 /// decreases. It's used during rounding errors for share -> amount conversions.

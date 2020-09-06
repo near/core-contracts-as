@@ -1,5 +1,6 @@
 import { u128, VMContext, Context, env, util } from "near-sdk-as";
 
+
 const INPUT = "USER123";
 const DEPOSIT = u128.from(10);
 
@@ -11,8 +12,8 @@ beforeEach(() => {
 describe("Function call", () => {
   it("should contain input", () => {
 
-    //test Context
-    //let stakedBalance = Context.accountLockedBalance
+    let a = Context.accountLockedBalance
+    expect(a).toBe(u128.from(12))
 
     env.input(0);
     let len = env.register_len(0);
@@ -25,4 +26,4 @@ describe("Function call", () => {
   it("should have correct deposit", () => {
     expect(Context.attachedDeposit).toStrictEqual(DEPOSIT);
   });
-}); 
+});
