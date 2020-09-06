@@ -20,17 +20,25 @@ In AS, at the top level, any code that is outside of a function is bundled into 
 
 So if you have a global variable it will be read in at the start.  Which is also what rust does
 
-## As-pect testing -- Level 1:  /assembly/__tests__
+## Test Level 1: As-pect testing /assembly/__tests__
 
 The test at `/assembly/__tests__/*.spec.ts` are only for unit-testing, you'll have `descrbe|it|expect` within WASM code 
 
-env.epoch_height()
+env.account_locked_balance()
 LinkError: WebAssembly.Instance(): Import #13 module="env" function="account_locked_balance" error: function import requires a callable
 
+## Test Level 1.5: yarn build:contract:debug && node runner [rust|release]
 
-## Jest testing -- Level 2: /__tests__
+runner.js is a small node script to fast-test calling a WASM. It also allows you to run the same calls against the rust-generated WASM file. It uses the VM-runner-standalone from near-sdk-as/running
 
-The tests at `/__tests__/*.spec.ts` are run on a simulated VM environment, the tests load your comiled WASM on the simulated VM and you can call and test the contracts's public functions but you won't have access to internal state. You have full `jest` `descrbe|it|expect` and you have access to `Env` and `Context`
+## Test Level 2: Jest testing /__tests__
+
+The tests at `/__tests__/*.spec.ts` are run on a simulated VM environment, the tests load your compiled WASM on the simulated VM and you can call and test the contracts's public functions but you won't have access to internal state. You have full `jest` `descrbe|it|expect` 
+
+## Integration testing -- Level 3: use near shell to deploy and test the contract on testnet
+
+See the starter apps created by create-near-app
+
 
 ## Enums en github.com/nearprotocol/nearcore
 pub enum PromiseResult {
