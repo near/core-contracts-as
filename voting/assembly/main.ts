@@ -31,7 +31,6 @@ export class VotingContract {
     this.last_epoch_height = 0
   }
 
-
   /// Ping to update the votes according to current stake of validators.
   ping(): void {
     assert(this.result == 'None', ERR_VOTING_ALREADY_ENDED)
@@ -43,7 +42,7 @@ export class VotingContract {
       this.total_voted_stake = u128.Zero
       for(let account_id in votes) {
         const account_current_stake = env.validator_stake(account_id)
-        this.total_voted_stake = this.total_voted_stake + account_current_stake
+        this.total_voted_stake = u128.add(this.total_voted_stake, account_current_stake)
         if(account_current_stake > u128.Zero) {
           this.votes.set(account_id, account_current_stake)
          }
@@ -59,8 +58,8 @@ export class VotingContract {
     assert(this.result == 'None', ERR_CHECK_RESULT_AFTER_RESULT)
     const total_stake = env.validator_total_stake()
     const two = u128.from(2)
-    const three = u128.from(3)
-    if(this.total_voted_stake > (two * total_stake / three)) {
+    
+    if(u128.gt(this.total_voted_stake, u128.mul(u128.from(2), u128.div(total_stake, u128.from(3))))) {
       this.result = env.block_timestamp()
     }
   }
@@ -85,8 +84,8 @@ export class VotingContract {
     // Remove the key
       this.votes.delete(account_id)
       assert(voted_stake <= this.total_voted_stake, `invariant: voted stack ${voted_stake} is more than total voted stake ${this.total_voted_stake}`)
-      
-      this.total_voted_stake = this.total_voted_stake + account_stake  - voted_stake
+
+      this.total_voted_stake = u128.sub(u128.add(this.total_voted_stake, account_stake), voted_stake)
 
       if (account_stake > u128.Zero) {
         this.votes.set(account_id, account_stake)
@@ -111,12 +110,10 @@ export class VotingContract {
     ]
   }
 
-
   /// Returns all active votes.
   /// Note: as a view method, it doesn't recompute the active stake. May need to call `ping` to
   /// update the active stake.
   get_votes(): PersistentUnorderedMap<AccountId, Balance> {
     return this.votes
   }
-
 }
