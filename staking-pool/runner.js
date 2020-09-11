@@ -1,159 +1,70 @@
 "use strict";
+var VM=require("./VM-bin-runner-wrap")
+var expect=VM.expect
 
-//node /home/lucio/repos/core-contracts-as/staking-pool/node_modules/near-sdk-as/runtime/dist/bin.js 
-//--context='{"input":"e30=","output_data_receivers":[],"prepaid_gas":1000000000000000,"attached_deposit":"0","is_view":false,"block_index":1,"block_timestamp":42,"epoch_height":1,"storage_usage":60,"random_seed":"KuTCtARNzxZQ3YvXDeLjx83FDqxv2SdQTSbiq876zR7","current_account_id":"staking-pool","signer_account_id":"alice","predecessor_account_id":"alice","account_balance":"1000000000000","signer_account_pk":"7ZJRjoNqT3w68VBD6stbKgjYVmUcLmUfL7YyTWxz1dNX","account_locked_balance":"0"}' --input='{}' --wasm-file=/home/lucio/repos/core-contracts-as/staking-pool/dist/../build/debug/staking-pool.wasm --method-name=get_reward_fee_fraction --state='{}'
-
-var child_process = require("child_process");
-var util = require("util");
-
-//import { util } from 'util'
-
-var DEBUG = 0;
-
-var globalState = {};
-
-function spawn(args) {
-
-    if (DEBUG) console.log(args);
-
-    var execResult = child_process.spawnSync("node", args);
-
-    if (execResult.status != 0) {
-        throw new Error("Failed to run successfully: " + execResult.output[2].toString());
-    }
-    if (DEBUG) {
-        if (execResult.output[0]) console.log(execResult.output[0].toString());
-        if (execResult.output[1]) console.log(execResult.output[1].toString());
-        if (execResult.output[2]) console.log(execResult.output[2].toString());
-    }
-
-    return execResult.output[1];
-}
-
-// class Contract
-function Contract(WASMFile, contractName, signer_account_id, predecessor_account_id) {
-    this.WASMFile = WASMFile
-    this.contractName = contractName;
-    this.signer_account_id = signer_account_id;
-    this.predecessor_account_id = predecessor_account_id;
-    this.block_timestamp = 42;
-}
-
-Contract.prototype.call = function (method, input) {
-
-    if (input == undefined) input = ""
-
-    console.log("---------------------------");
-    console.log("------ CALL " + method + "(" + input.toString() + ")");
-
-    var context = {
-        "current_account_id": this.contractName,
-        "signer_account_id": this.signer_account_id, "predecessor_account_id": this.predecessor_account_id || this.signer_account_id,
-        "attached_deposit": "0", "is_view": false, "block_index": 1,
-        "block_timestamp": this.block_timestamp, "epoch_height": 1,
-        "account_balance": "1000000000000",
-        "account_locked_balance": "0",
-        "signer_account_pk": "7ZJRjoNqT3w68VBD6stbKgjYVmUcLmUfL7YyTWxz1dNX",
-        "prepaid_gas": 1000000000000000, "output_data_receivers": [],
-        "storage_usage": 60, "random_seed": "KuTCtARNzxZQ3YvXDeLjx83FDqxv2SdQTSbiq876zR7",
-        "input": "e30="
-    };
-
-    var argscall = ['./node_modules/near-sdk-as/runtime/dist/bin.js',
-        "--method-name=" + method,
-        "--input=" + JSON.stringify(input || {}),
-        "--context=" + JSON.stringify(context),
-        '--wasm-file=' + this.WASMFile,
-        "--state=" + JSON.stringify(globalState)];
-
-    if (DEBUG) console.log(argscall);
-
-    var output = spawn(argscall);
-
-    console.log("RESULT: " + output.toString());
-
-    var result;
-    try {
-        result = JSON.parse(output);
-        globalState = result.state; //store state for next call
-        let gas;
-        if (result.outcome) gas= result.outcome.burnt_gas
-        if (gas) {
-            console.log("burnt_gas: " + Math.round(gas/1e9) + " Billion yoctos");
-        }
-        if (result.err) {
-            console.log("🛑-ERROR from contract call: " + util.inspect(result.err, { depth: 10 }));
-        }
-    }
-    catch (e) {
-        console.error("Failed to parse: " + output);
-        throw e;
-    }
-
-    if (DEBUG) console.log(util.inspect(result, { depth: 10 }));
-
-    console.log("OUTCOME:")
-    console.log(result.outcome)
-
- };
-
-/*
-var args = ['/home/lucio/repos/core-contracts-as/staking-pool/node_modules/near-sdk-as/runtime/dist/bin.js',
-    '--context={"input":"e30=","output_data_receivers":[],"prepaid_gas":1000000000000000,"attached_deposit":"0","is_view":false,"block_index":1,"block_timestamp":42,"epoch_height":1,"storage_usage":60,"random_seed":"KuTCtARNzxZQ3YvXDeLjx83FDqxv2SdQTSbiq876zR7","current_account_id":"staking-pool","signer_account_id":"alice","predecessor_account_id":"alice","account_balance":"1000000000000","signer_account_pk":"7ZJRjoNqT3w68VBD6stbKgjYVmUcLmUfL7YyTWxz1dNX","account_locked_balance":"0"}',
-    '--wasm-file=/home/lucio/repos/core-contracts-as/staking-pool/dist/../build/debug/staking-pool.wasm',
-    '--method-name=get_reward_fee_fraction',
-    '--input={}',
-    '--state={}']
-
-
-
-var method = {
-    "name": "get_reward_fee_fraction",
-    "input": ""
-}
-
-method.name = "get_owner_id"
-
-var args2 = ['/home/lucio/repos/core-contracts-as/staking-pool/node_modules/near-sdk-as/runtime/dist/bin.js',
-    `--method-name=${method.name}`,
-    `--input=${JSON.stringify(method.input)}`,
-    '--context={"input":"e30=","output_data_receivers":[],"prepaid_gas":1000000000000000,"attached_deposit":"0","is_view":false,"block_index":1,"block_timestamp":42,"epoch_height":1,"storage_usage":60,"random_seed":"KuTCtARNzxZQ3YvXDeLjx83FDqxv2SdQTSbiq876zR7","current_account_id":"staking-pool","signer_account_id":"alice","predecessor_account_id":"alice","account_balance":"1000000000000","signer_account_pk":"7ZJRjoNqT3w68VBD6stbKgjYVmUcLmUfL7YyTWxz1dNX","account_locked_balance":"0"}',
-    '--wasm-file=/home/lucio/repos/core-contracts-as/staking-pool/dist/../build/debug/staking-pool.wasm',
-    '--state={}']
-
-console.log(args2)
-
-spawn(args2)
-*/
-
+//--------------------------------
+//--  main  ----------------------
+//--------------------------------
 //console.log(process.argv)
 
-DEBUG = 0;
+VM.setDEBUG(0)
 
 let useRust = (process.argv.includes("rust"))
 let useRelease = (process.argv.includes("release"))
+let verbose = (process.argv.includes("-v"))
 
-let createMethodName = "init"
+let initORnew = "init" //default
 let WASMFile = './build/debug/staking-pool.wasm'
 if (useRust) {
     console.log("Using RUST-based WASM")
     WASMFile = "./rust-staking-pool.wasm"
-    createMethodName = "new"
+    initORnew = "new"
 }
-if (useRelease ) {
+if (useRelease) {
     console.log("Using RELEASE WASM")
     WASMFile = './build/release/staking-pool.wasm'
 }
 
-var c = new Contract(WASMFile, "staking-contract", "alice");
+if (verbose) VM.setDEBUG(1)
 
-c.call(createMethodName, {
-    owner_id: "owner.account",
+var alice = new VM.Account("alice")
+var spContract = new VM.Account("staking-pool.alice").deploySmartContract(WASMFile)
+
+var bob = new VM.Account("bob")
+
+//call init/new on the contract
+let initResult = alice.call(spContract, initORnew, {
+    owner_id: alice.accountId,
     stake_public_key: "KuTCtARNzxZQ3YvXDeLjx83FDqxv2SdQTSbiq876zR7",
-    reward_fee_fraction: { numerator: 8, denominator: 100 }
-}
-)
+    reward_fee_fraction: {numerator:8, denominator:100}
+})
 
-c.call("get_owner_id")
+expect(initResult.err).toBe(null, "err")
 
-c.call("get_reward_fee_fraction")
+//try get_owner_id
+// let getOwner = alice.call(spContract, "get_owner_id")
+// expect(getOwner.data).toBe(alice.accountId, "contract owner")
+
+//try get_reward_fee_fraction
+// let rffResult = alice.call(spContract, "get_reward_fee_fraction")
+// expect(rffResult.data).toBe({ numerator: 8, denominator: 100 }, "get_reward_fee_fraction")
+
+let bobDeposit
+//try deposit Zero
+//bobDeposit = 0
+//let depositResult = bob.callWithAttachedDeposit(bobDeposit, spContract, "deposit")
+//console.log(util.inspect(bob.lastCallOutput))
+
+//try deposit 100
+bobDeposit = 100_000_000_000
+let depositResult1 = bob.call(spContract, "depo2")
+let depositResult2 = bob.callWithAttachedDeposit(bobDeposit, spContract, "depo2")
+let depositResult = bob.callWithAttachedDeposit(bobDeposit, spContract, "deposit")
+//console.log(util.inspect(bob.lastCallOutput))
+
+//let wdResult = bob.call(spContract, "withdraw_all")
+
+//try get_account_unstaked_balance
+//let unstakedCall = bob.call(spContract, "get_account_unstaked_balance",{account_id:"bob"})
+//expect(unstakedCall.data).toBe(bobDeposit, "bob unstaked after deposit")
+

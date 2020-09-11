@@ -1,8 +1,8 @@
 import { u128, Context } from "near-sdk-as"
 
-type AccountId = string;
-type Balance = u128;
-type EpochHeight = u64;
+export type AccountId = string;
+export type Balance = u128;
+export type EpochHeight = u64;
 
 /// A type to distinguish between a balance and "stake" shares for better readability.
 export type NumStakeShares = u128;
@@ -10,6 +10,7 @@ export type NumStakeShares = u128;
 //
 // client account state persisted into a map
 //
+@nearBindgen
 export class ClientAccountState {
 
   /// The unstaked balance. It represents the amount the account has on this contract that
@@ -24,12 +25,13 @@ export class ClientAccountState {
 
   /// The minimum epoch height when the withdrawn is allowed.
   /// This changes after unstaking action, because the amount is still locked for 3 epochs.
-  unstaked_available_epoch_height: EpochHeight = u64.MIN_VALUE
+  unstaked_available_epoch_height: EpochHeight = 0
 
-  stakedBalance: u128 = u128.Zero;
+}
 
-  get isEmpty(): boolean { return this.unstaked > u128.Zero || this.stake_shares > u128.Zero }
-
+export function isEmpty(acc:ClientAccountState): boolean { 
+  return acc.unstaked == u128.Zero && 
+  acc.stake_shares == u128.Zero 
 }
 
 
@@ -47,7 +49,7 @@ export class HumanReadableAccount {
   constructor(account_id: string, a: ClientAccountState) {
     this.account_id = account_id
     this.unstaked_balance = a.unstaked
-    this.can_withdraw = a.unstaked_available_epoch_height <= Context.epochHeight
+    //bug/this.can_withdraw = a.unstaked_available_epoch_height <= Context.epochHeight
   }
 }
 
@@ -66,9 +68,7 @@ export class RewardFeeFraction {
   }
 
   multiply(value: Balance): Balance {
-    return u128.fromU32(this.numerator) * value / u128.fromU32(this.denominator)
+    return u128.div( u128.mul(u128.fromU32(this.numerator),value),u128.fromU32(this.denominator))
   }
-
-
 }
 

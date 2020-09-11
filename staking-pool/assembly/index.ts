@@ -1,7 +1,9 @@
-import { Context, storage, u128, env, ContractPromise, ContractPromiseBatch, base58 } from "near-sdk-as"
+import { Context, storage, u128, env, ContractPromise, ContractPromiseBatch, base58, logging } from "near-sdk-as"
 import { HumanReadableAccount, RewardFeeFraction } from "./model"
 import { AccountId, Base58PublicKey, PromiseResult } from "./types"
 import { StakingContractState, getStateFromStorage, initializeState, saveState } from "./contract-internal"
+
+const DEBUG=1
 
 /**
  * This is the public interface for the staking contract
@@ -16,8 +18,10 @@ import { StakingContractState, getStateFromStorage, initializeState, saveState }
  * 
  */
 
-/// The amount of gas given to complete `vote` call.
-const VOTE_GAS: u64 = 100_000_000_000_000
+/**
+ *  The amount of gas given to complete `vote` call.
+ */
+const VOTE_GAS: u128 = u128.from(100_000_000_000_000)
 
 /// There is no deposit balance attached.
 const NO_DEPOSIT: u128 = u128.from(0)
@@ -33,35 +37,47 @@ var contract: StakingContractState = getStateFromStorage()
 /// The entire current balance of this contract will be used to stake. This allows contract to
 /// always maintain staking shares that can't be unstaked or withdrawn.
 /// It prevents inflating the price of the share too much.
-@exportAs ("new")
-function init( owner_id: AccountId, stake_public_key: Base58PublicKey, reward_fee_fraction: RewardFeeFraction): void {
-
+//@exportAs ("new")
+export function init( owner_id: AccountId, stake_public_key: Base58PublicKey, reward_fee_fraction: RewardFeeFraction): void {
     assert(contract.owner_id == "", "Already initialized")
-
     //create and store this contract state
     initializeState(owner_id, stake_public_key, reward_fee_fraction)
+    const ac = contract.getClientAccount("dummy")
+    ac.unstaked=u128.from(10000)
+    contract.saveClientAccount('dummy',ac)
     saveState()
-
     // Staking with the current pool to make sure the staking key is valid.
     contract.restake()
 }
 
 /// Distributes rewards and restakes if needed.
-export function ping() {
-    if (contract.ping()) {
+export function ping(): void {
+    if (contract.internalPing()) {
         saveState()
         contract.restake()
     }
 }
 
 
+export function depo2(): void {
+    if (DEBUG) logging.log("depo2") 
+    saveState()
+}
+
 // client Context.predecessor is depositing Context.attachedDeposit in their internal account
 @payable
-export function deposit() {
-    let needToRestake = contract.ping()
-    contract.clientDeposit()
+export function deposit(): void {
+    if (DEBUG) logging.log("let needToRestake = contract.internalPing() ") 
+    let needToRestake = false; //contract.internalPing()
+    if (DEBUG) logging.log("needToRestake = "+needToRestake.toString()) 
+    if (DEBUG) logging.log("contract.clientDeposit()") 
+    //const deposited=contract.clientDeposit()
+    if (DEBUG) logging.log("after contract.clientDeposit()") 
+    //contract.clientWithdraw(deposited)
     saveState()
+    if (DEBUG) logging.log("after saveState()") 
     if (needToRestake) {
+        if (DEBUG) logging.log("contract.restake()") 
         contract.restake()
     }
 }
@@ -70,9 +86,9 @@ export function deposit() {
 // client Context.predecessor is depositing Context.attachedDeposit in their internal account
 // and wants to stake that amount afterwards
 //
-@payable
-export function deposit_and_stake() {
-    contract.ping()
+//@payable
+export function deposit_and_stake(): void {
+    contract.internalPing()
     let amount = contract.clientDeposit()
     contract.clientStake(amount)
     saveState()
@@ -82,8 +98,8 @@ export function deposit_and_stake() {
 
 /// Withdraws the entire unstaked balance from the predecessor account.
 /// It's only allowed if the `unstake` action was not performed in the four most recent epochs.
-export function withdraw_all() {
-    let needToRestake = contract.ping()
+export function withdraw_all(): void {
+    let needToRestake = contract.internalPing()
     let clientId = Context.predecessor
     let account = contract.getClientAccount(clientId)
     contract.clientWithdraw(account.unstaked)
@@ -93,17 +109,18 @@ export function withdraw_all() {
 
 /// Withdraws the non staked balance for given account.
 /// It's only allowed if the `unstake` action was not performed in the four most recent epochs.
-export function withdraw(amount: u128) {
-    let needToRestake = contract.ping()
+export function withdraw(amount: u128): void {
+    let needToRestake = contract.internalPing()
     contract.clientWithdraw(amount)
     saveState()
     if (needToRestake) contract.restake()
 }
 
+
 /// Stakes all available unstaked balance from the inner account of the predecessor.
-export function stake_all() {
+export function stake_all(): void {
     // Stake action always restakes
-    contract.ping()
+    contract.internalPing()
     let clientId = Context.predecessor
     let account = contract.getClientAccount(clientId)
     contract.clientStake(account.unstaked)
@@ -113,9 +130,10 @@ export function stake_all() {
 
 /// Stakes the given amount from the inner account of the predecessor.
 /// The inner account should have enough unstaked balance.
-export function stake(amount: u128) {
+
+export function stake(amount: u128): void {
     // Stake action always restakes
-    contract.ping()
+    contract.internalPing()
     contract.clientStake(amount)
     saveState()
     contract.restake()
@@ -123,9 +141,9 @@ export function stake(amount: u128) {
 
 /// Unstakes all staked balance from the inner account of the predecessor.
 /// The new total unstaked balance will be available for withdrawal in four epochs.
-export function unstake_all() {
+export function unstake_all(): void {
     // Unstake action always restakes
-    contract.ping()
+    contract.internalPing()
     let clientId = Context.predecessor
     let account = contract.getClientAccount(clientId)
     let amount = contract.staked_amount_from_num_shares_rounded_down(account.stake_shares)
@@ -137,9 +155,10 @@ export function unstake_all() {
 /// Unstakes the given amount from the inner account of the predecessor.
 /// The inner account should have enough staked balance.
 /// The new total unstaked balance will be available for withdrawal in four epochs.
-export function unstake(amount: u128) {
+
+export function unstake(amount: u128): void {
     // Unstake action always restakes
-    contract.ping()
+    contract.internalPing()
     contract.clientUnstake(amount)
     saveState()
     contract.restake()
@@ -150,40 +169,47 @@ export function unstake(amount: u128) {
 //----------------
 
 /// Returns the unstaked balance of the given account.
+
 export function get_account_unstaked_balance(account_id: AccountId): u128 {
     return contract.getClientAccount(account_id).unstaked
 }
 
 /// Returns human readable representation of the account for the given account ID.
+
+
 export function get_account(account_id: AccountId): HumanReadableAccount {
-    return new HumanReadableAccount(account_id, contract.getClientAccount(account_id))
+    return contract.getClientHRA(account_id)
 }
 
 /// Returns the staked balance of the given account.
 /// NOTE: This is computed from the amount of "stake" shares the given account has and the
 /// current amount of total staked balance and total stake shares on the account.
+
 export function get_account_staked_balance(account_id: AccountId): u128 {
-    //uses HumanReadableAccount model
-    return get_account(account_id).staked_balance
+    return contract.getClientHRA(account_id).staked_balance
 }
 
 /// Returns the total balance of the given account (including staked and unstaked balances).
+
 export function get_account_total_balance(account_id: AccountId): u128 {
-    let accountHR = get_account(account_id)
+    let accountHR = contract.getClientHRA(account_id)
     return accountHR.unstaked_balance + accountHR.staked_balance
 }
 
 /// Returns `true` if the given account can withdraw tokens in the current epoch.
+
 export function is_account_unstaked_balance_available(account_id: AccountId): bool {
-    return get_account(account_id).can_withdraw
+    return contract.getClientHRA(account_id).can_withdraw
 }
 
 /// Returns the total staking balance.
+
 export function get_total_staked_balance(): u128 {
     return contract.total_staked_balance
 }
 
 ///(internal-test) Returns total_stake_shares
+
 export function _get_total_stake_shares(): u128 {
     return contract.total_stake_shares
 }
@@ -213,7 +239,8 @@ export function get_number_of_accounts(): u64 {
     return contract.persistentAccountsMap.length
 }
 /// Returns the list of accounts
-export function get_accounts(from_index: u64, limit: u64): AccountId[] {
+export function get_accounts(from_index: i32, limit: i32): AccountId[] {
+    //@ts-ignore
     return contract.persistentAccountsMap.keys(0, limit)
 }
 
@@ -222,7 +249,7 @@ export function get_accounts(from_index: u64, limit: u64): AccountId[] {
 //- Self-Callbacks -
 //------------------
 
-export function on_stake_action() {
+export function on_stake_action(): void {
     assert(Context.contractName == Context.predecessor, "Can be called only as a callback")
     assert(env.promise_results_count() == 1, "Contract expected a result on the callback")
     let stake_action_result = env.promise_result(0, 0)
@@ -237,11 +264,12 @@ export function on_stake_action() {
 //- Owner's methods -
 //-------------------
 
+
 /// Updates current public key to the new given public key.
-export function update_staking_key(stake_public_key: Base58PublicKey) {
+export function update_staking_key(stake_public_key: Base58PublicKey): void {
     contract.assertOwner()
     // When updating the staking key, the contract has to restake.
-    let _need_to_restake = contract.ping()
+    let _need_to_restake = contract.internalPing()
     contract.stake_public_key_u8Arr = base58.decode(stake_public_key)
     saveState()
     contract.restake()
@@ -249,10 +277,11 @@ export function update_staking_key(stake_public_key: Base58PublicKey) {
 
 /// Owner's method.
 /// Updates current reward fee fraction to the new given fraction.
-export function update_reward_fee_fraction(reward_fee_fraction: RewardFeeFraction) {
+
+export function update_reward_fee_fraction(reward_fee_fraction: RewardFeeFraction): void {
     contract.assertOwner()
-    reward_fee_fraction.assert_valid()
-    let needToRestake = contract.ping()
+    reward_fee_fraction.assertValid()
+    let needToRestake = contract.internalPing()
     contract.reward_fee_fraction = reward_fee_fraction
     saveState()
     if (needToRestake) {
@@ -260,20 +289,24 @@ export function update_reward_fee_fraction(reward_fee_fraction: RewardFeeFractio
     }
 }
 
+/*
+INCLUDING THIS FUNCTION BREAKS asb
 /// Owner's method.
 /// Calls `vote(is_vote)` on the given voting contract account ID on behalf of the pool.
-export function vote(voting_account_id: AccountId, is_vote: bool): ContractPromise {
+export function vote(voting_account_id: AccountId, is_vote: bool): ContractPromiseBatch {
     contract.assertOwner()
     assert(env.isValidAccountID(voting_account_id), "Invalid voting account ID")
-    return ContractPromise.create(voting_account_id, "vote", { is_vote: is_vote }, VOTE_GAS, NO_DEPOSIT)
+    return ContractPromiseBatch.create(voting_account_id)
+        .function_call("vote", { is_vote: is_vote }, VOTE_GAS, NO_DEPOSIT)
 }
+*/
 
 /// Owner's method.
 /// Pauses pool staking.
-export function pause_staking() {
+export function pause_staking(): void {
     contract.assertOwner()
     assert(!contract.paused, "The staking is already paused")
-    contract.ping()
+    contract.internalPing()
     contract.paused = true
     saveState()
     contract.stake_zero()
@@ -281,12 +314,11 @@ export function pause_staking() {
 
 /// Owner's method.
 /// Resumes pool staking.
-export function resume_staking() {
+export function resume_staking(): void {
     contract.assertOwner()
     assert!(contract.paused, "The staking is not paused")
-    contract.ping()
+    contract.internalPing()
     contract.paused = false;
     saveState()
     contract.restake();
 }
-*/

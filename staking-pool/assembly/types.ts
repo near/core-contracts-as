@@ -21,6 +21,6 @@ export function ntoy(nearAmount:number):u128{
     return u128.from(nearAmount*1e24)
 }
 
-export function yton(yoctoAmount:u128):number{
-    return yoctoAmount/u128.from(1e24)
+export function yton(yoctoAmount:u128):u128{
+    return u128.div(yoctoAmount,u128.from(1e24))
 }
