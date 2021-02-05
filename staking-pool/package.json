@@ -1,5 +1,17 @@
 {
   "version": "0.0.0",
   "name": "staking-pool",
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "tsbuild:test": "tsc __tests__/*.ts --outDir dist --sourceMap",
+    "build": "yarn tsbuild:test && jest dist/*.js",
+    "build:contract:debug": "asb --target debug",
+    "asp": "asp",
+    "jest": "jest",
+    "test": "yarn build:contract:debug && node runner",
+    "setup": "node setup.js"
+  },
+  "devDependencies": {
+    "near-sdk-as": "^1.2.1"
+  }
 }
