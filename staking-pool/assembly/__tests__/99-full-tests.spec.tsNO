@@ -1,0 +1,303 @@
+import { u128, VMContext, Context, env, util, VM, Outcome, u256, logging } from "near-sdk-as";
+import { RewardFeeFraction } from "../model";
+
+import * as Contract from ".."
+import { getCreatedStatePointer } from "../contract-internal";
+
+type Balance = u128
+
+//global test vars
+let last_total_staked_balance: Balance
+let last_total_stake_shares: Balance
+
+//utility functions
+function ntoy(nearAmount: number): u128 {
+  return u128.from<number>(nearAmount * 1e24)
+}
+
+function yton(yoctoAmount: u128): u128 {
+  return yoctoAmount / u128.from<number>(1e24)
+}
+
+function prepareForTest(
+  owner: string, 
+  stake_public_key: string,
+  reward_fee_fraction: RewardFeeFraction): void {
+
+  VMContext.setCurrent_account_id(owner)
+  VMContext.setAccount_balance(ntoy(30))
+
+  Contract.create(owner,stake_public_key,reward_fee_fraction)
+
+  last_total_staked_balance = Contract.get_total_staked_balance()
+  // total_stake_shares is not exposed thru a public function
+  last_total_stake_shares = getCreatedStatePointer().total_stake_shares
+}
+
+function verify_stake_price_increase_guarantee(): void {
+  let total_staked_balance = Contract.get_total_staked_balance()
+  // total_stake_shares is not exposed thru a public function
+  let total_stake_shares = getCreatedStatePointer().total_stake_shares
+
+  //@ts-ignore
+  assert(total_staked_balance * last_total_stake_shares >= last_total_staked_balance * total_stake_shares,
+    "Price increase guarantee was violated.")
+}
+
+
+function setPredecesor(predecessor_account_id: string, deposit: Balance): void {
+  verify_stake_price_increase_guarantee()
+  VMContext.setPredecessor_account_id(predecessor_account_id)
+  VMContext.setSigner_account_id(predecessor_account_id)
+  VMContext.setAttached_deposit(deposit)
+  logging.log("Epoch: " + env.epoch_height.toString() +
+      ", Deposit: " + yton(deposit).toString() +
+      ", amount:" + yton(Context.accountBalance).toString() +
+      ", locked_amount: " + yton(Context.accountLockedBalance).toString()
+    );
+}
+
+function simulate_stake_call(): void {
+  let total_stake = Contract.get_total_staked_balance()
+  /*  // Stake action
+    self.amount = self.amount + self.locked_amount - total_stake;
+    self.locked_amount = total_stake;
+    // Second function call action
+    self.update_context(staking(), 0);
+    */
+}
+
+//@ts-ignore
+function skip_epochs(num: u64): void {
+  VMContext.setBlock_index(Context.blockIndex + num)
+  //simulate rewards
+  //VMContext.setAccount_locked_balance((Context.accountLockedBalance * (100 + num)) / 100)
+}
+
+/*
+describe("Function call", () => {
+  it("should contain input", () => {
+    env.input(0);
+    let len = env.register_len(0);
+    let expected = new Uint8Array(len as u32);
+    // @ts-ignore;
+    env.read_register(0, expected.dataStart);
+    expect(expected).toStrictEqual(util.stringToBytes(INPUT))
+  });
+
+  it("should have correct deposit", () => {
+    expect(Context.attachedDeposit).toStrictEqual(DEPOSIT);
+    env.promise_return
+  });
+})
+*/
+
+describe("contract", () => {
+
+//setup before each test
+beforeEach(() => {
+  //VMContext.setAttached_deposit(DEPOSIT);
+  //VMContext.setInput(INPUT);
+  prepareForTest(
+    "stakingcontract.account",
+    "KuTCtARNzxZQ3YvXDeLjx83FDqxv2SdQTSbiq876zR7",
+    new RewardFeeFraction(0, 0))
+})
+
+//function test_restake_fail() {
+  /*  it("should catch restake fail", () => {
+      setPredecesor("bob", u128.from(0))
+  
+      Contract.internal_restake()
+      let r = env.
+      let receipts = Context.rece env.re  .env:: created_receipts()
+      assert_eq!(receipts.len(), 2)
+      // Mocked Receipt fields are private, so can't check directly.
+      assert!(serde_json:: to_string(& receipts[0]).unwrap().contains("\"actions\":[{\"Stake\":{\"stake\":29999999999999000000000000,"))
+      assert!(serde_json:: to_string(& receipts[1]).unwrap().contains("\"method_name\":\"on_stake_action\""))
+      emulator.simulate_stake_call()
+      emulator.update_context(staking(), 0)
+      testing_env_with_promise_results(emulator.context.clone(), PromiseResult:: Failed)
+      emulator.contract.on_stake_action()
+      let receipts = Context.env:: created_receipts()
+      assert_eq!(receipts.len(), 1)
+      assert!(serde_json:: to_string(& receipts[0]).unwrap().contains("\"actions\":[{\"Stake\":{\"stake\":0,"))
+    })
+  */
+
+  it("should deposit and withdraw", () => {
+
+    let deposit_amount = ntoy(1_000_000)
+
+    setPredecesor("bob", deposit_amount)
+    Contract.deposit()
+
+    setPredecesor("bob", u128.from(0))
+    expect<u128>(Contract.get_account_unstaked_balance("bob")).toBe(deposit_amount)
+
+    Contract.withdraw(deposit_amount)
+    expect<u128>(Contract.get_account_unstaked_balance("bob")).toBe(u128.from(0))
+
+  })
+
+})
+
+
+/*
+//#[test]
+//#[test]
+function test_stake_with_fee() {
+  let emulator = Emulator::new (owner(), "KuTCtARNzxZQ3YvXDeLjx83FDqxv2SdQTSbiq876zR7", {
+      numerator: 10,
+      denominator: 100
+  })
+  let deposit_amount = ntoy(1_000_000)
+  emulator.update_context(bob(), deposit_amount)
+  emulator.contract.deposit()
+      +=
+      emulator.update_context(bob(), 0)
+  emulator.contract.stake(deposit_amount.into())
+  emulator.simulate_stake_call()
+  assert_eq!(emulator.contract.get_account_staked_balance(bob()).0, deposit_amount)
+  let locked_amount = emulator.locked_amount
+  let n_locked_amount = yton(locked_amount)
+  emulator.skip_epochs(10)
+      // Overriding rewards (+ 100K reward)
+      =
+      emulator.update_context(bob(), 0)
+  emulator.contract.ping()
+  let expected_amount = deposit_amount + ntoy((yton(deposit_amount) * 90_000 + n_locked_amount / 2) / n_locked_amount)
+  assert_eq_in_near!(emulator.contract.get_account_staked_balance(bob()).0, expected_amount)
+  // Owner got 10% of the rewards
+  assert_eq_in_near!(emulator.contract.get_account_staked_balance(owner()).0, ntoy(10_000))
+  let locked_amount = emulator.locked_amount
+  let n_locked_amount = yton(locked_amount)
+  emulator.skip_epochs(10)
+      // Overriding rewards (another 100K reward)
+      =
+      emulator.update_context(bob(), 0)
+  emulator.contract.ping()
+  // previous balance plus (1_090_000 / 1_100_030)% of the 90_000 reward (rounding to nearest).
+  assert_eq_in_near!(emulator.contract.get_account_staked_balance(bob()).0, expected_amount + ntoy((yton(expected_amount) * 90_000 + n_locked_amount / 2) / n_locked_amount))
+  // owner earns 10% with the fee and also small percentage from restaking.
+  assert_eq_in_near!(emulator.contract.get_account_staked_balance(owner()).0, ntoy(10_000) + ntoy(10_000) + ntoy((10_000u128 * 90_000 + n_locked_amount / 2) / n_locked_amount))
+  assert_eq!(emulator.contract.get_number_of_accounts(), 2)
+}
+//#[test]
+function test_stake_unstake() {
+  let emulator = Emulator::new (owner(), "KuTCtARNzxZQ3YvXDeLjx83FDqxv2SdQTSbiq876zR7", zero_fee())
+  let deposit_amount = ntoy(1_000_000)
+  emulator.update_context(bob(), deposit_amount)
+  emulator.contract.deposit()
+      +=
+      emulator.update_context(bob(), 0)
+  emulator.contract.stake(deposit_amount.into())
+  emulator.simulate_stake_call()
+  assert_eq!(emulator.contract.get_account_staked_balance(bob()).0, deposit_amount)
+  let locked_amount = emulator.locked_amount
+  // 10 epochs later, unstake half of the money.
+  emulator.skip_epochs(10)
+      // Overriding rewards
+      =
+      emulator.update_context(bob(), 0)
+  emulator.contract.ping()
+  assert_eq_in_near!(emulator.contract.get_account_staked_balance(bob()).0, deposit_amount + ntoy(10))
+  emulator.contract.unstake((deposit_amount / 2))
+  emulator.simulate_stake_call()
+  assert_eq_in_near!(emulator.contract.get_account_staked_balance(bob()).0, deposit_amount / 2 + ntoy(10))
+  assert_eq_in_near!(emulator.contract.get_account_unstaked_balance(bob()).0, deposit_amount / 2)
+  let acc = emulator.contract.get_account(bob())
+  assert_eq!(acc.account_id, bob())
+  assert_eq_in_near!(acc.unstaked_balance.0, deposit_amount / 2)
+  assert_eq_in_near!(acc.staked_balance.0, deposit_amount / 2 + ntoy(10))
+  assert!(!acc.can_withdraw)
+  assert!(!emulator.contract.is_account_unstaked_balance_available(bob()),)
+  emulator.skip_epochs(4)
+  emulator.update_context(bob(), 0)
+  assert!(emulator.contract.is_account_unstaked_balance_available(bob()),)
+}
+//#[test]
+function test_stake_all_unstake_all() {
+  let emulator = Emulator::new (owner(), "KuTCtARNzxZQ3YvXDeLjx83FDqxv2SdQTSbiq876zR7", zero_fee())
+  let deposit_amount = ntoy(1_000_000)
+  emulator.update_context(bob(), deposit_amount)
+  emulator.contract.deposit_and_stake()
+      +=
+      emulator.simulate_stake_call()
+  assert_eq!(emulator.contract.get_account_staked_balance(bob()).0, deposit_amount)
+  assert_eq_in_near!(emulator.contract.get_account_unstaked_balance(bob()).0, 0)
+  let locked_amount = emulator.locked_amount
+  // 10 epochs later, unstake all.
+  emulator.skip_epochs(10)
+      // Overriding rewards
+      =
+      emulator.update_context(bob(), 0)
+  emulator.contract.ping()
+  assert_eq_in_near!(emulator.contract.get_account_staked_balance(bob()).0, deposit_amount + ntoy(10))
+  emulator.contract.unstake_all()
+  emulator.simulate_stake_call()
+  assert_eq_in_near!(emulator.contract.get_account_staked_balance(bob()).0, 0)
+  assert_eq_in_near!(emulator.contract.get_account_unstaked_balance(bob()).0, deposit_amount + ntoy(10))
+}
+/// Test that two can delegate and then undelegate their funds and rewards at different time.
+//#[test]
+function test_two_delegates() {
+  let emulator = Emulator::new (owner(), "KuTCtARNzxZQ3YvXDeLjx83FDqxv2SdQTSbiq876zR7", zero_fee())
+  emulator.update_context(alice(), ntoy(1_000_000))
+  emulator.contract.deposit()
+      +=
+      emulator.update_context(alice(), 0)
+  emulator.contract.stake(ntoy(1_000_000).into())
+  emulator.simulate_stake_call()
+  emulator.skip_epochs(3)
+  emulator.update_context(bob(), ntoy(1_000_000))
+  emulator.contract.deposit()
+      +=
+      emulator.update_context(bob(), 0)
+  emulator.contract.stake(ntoy(1_000_000).into())
+  emulator.simulate_stake_call()
+  assert_eq_in_near!(emulator.contract.get_account_staked_balance(bob()).0, ntoy(1_000_000))
+  emulator.skip_epochs(3)
+  emulator.update_context(alice(), 0)
+  emulator.contract.ping()
+  assert_eq_in_near!(emulator.contract.get_account_staked_balance(alice()).0, ntoy(1_060_900) - 1)
+  assert_eq_in_near!(emulator.contract.get_account_staked_balance(bob()).0, ntoy(1_030_000))
+  // Checking accounts view methods
+  // Should be 2, because the pool has 0 fee.
+  assert_eq!(emulator.contract.get_number_of_accounts(), 2)
+  let accounts = emulator.contract.get_accounts(0, 10)
+  assert_eq!(accounts.len(), 2)
+  assert_eq!(accounts[0].account_id, alice())
+  assert_eq!(accounts[1].account_id, bob())
+  let accounts = emulator.contract.get_accounts(1, 10)
+  assert_eq!(accounts.len(), 1)
+  assert_eq!(accounts[0].account_id, bob())
+  let accounts = emulator.contract.get_accounts(0, 1)
+  assert_eq!(accounts.len(), 1)
+  assert_eq!(accounts[0].account_id, alice())
+  let accounts = emulator.contract.get_accounts(2, 10)
+  assert_eq!(accounts.len(), 0)
+}
+//#[test]
+function test_low_balances() {
+  let emulator = Emulator::new (owner(), "KuTCtARNzxZQ3YvXDeLjx83FDqxv2SdQTSbiq876zR7", zero_fee())
+  let initial_balance = 100
+  emulator.update_context(alice(), initial_balance)
+  emulator.contract.deposit()
+      +=
+      let remaining = initial_balance
+  let amount = 1
+  whileemulator.update_context(alice(), 0) = emulator.contract.stake(amount.into())emulator.simulate_stake_call() -=
+}
+//#[test]
+function test_rewards() {
+  let emulator = Emulator::new (owner(), "KuTCtARNzxZQ3YvXDeLjx83FDqxv2SdQTSbiq876zR7", zero_fee())
+  let initial_balance = ntoy(100)
+  emulator.update_context(alice(), initial_balance)
+  emulator.contract.deposit()
+      +=
+      let remaining = 100
+  let amount = 1
+  whileemulator.skip_epochs(3)emulator.update_context(alice(), 0)emulator.contract.ping()emulator.update_context(alice(), 0) = emulator.contract.stake(ntoy(amount).into())emulator.simulate_stake_call() -=
+}
+*/
